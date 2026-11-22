@@ -129,12 +129,11 @@
   <div class="tabs" role="tablist">
     <button role="tab" id="tab-calc" aria-selected="true">Calculator</button>
     <button role="tab" id="tab-top" aria-selected="false">Top 10</button>
-    <button role="tab" id="tab-rec" aria-selected="false">World records</button>
   </div>
   <div id="view"></div>
   <footer>
-    <div id="updated">Loading records…</div>
-    <p>How it works: we take the ten cubers with the best Sum of Ranks across these 12 events (no blindfolded, Fewest Moves or Multi-Blind) and average their personal bests in each event. Your time is divided by that average in your event to get a number, and every other event's average is multiplied by it to give your ideal time there. It's a rough guide to where you'd be if you were as well-rounded as the best all-rounders, not a prediction. Everything comes from the official WCA results export, checked every day. This is an unofficial fan-made tool.</p>
+    <div id="updated">Loading…</div>
+    <p>How it works: we find the ten best all-round cubers, meaning the ones with the best combined ranking across these 12 events (no blindfolded, Fewest Moves or Multi-Blind), and average their personal bests in each event. Your time is divided by their average in your event to get a number, and their average in every other event is multiplied by it to give your ideal time there. It's a rough guide to where you'd be if you were as well-rounded as the best all-rounders, not a prediction. Everything comes from the official WCA results export, checked every day. This is an unofficial fan-made tool.</p>
   </footer>
 </div>
 <script>
@@ -324,11 +323,11 @@ function renderCalc(v) {
     if (cs === null || base === null) { out.append(el("div", "msg", "Enter a time above to see your ideal times in every event.")); return; }
     const ratio = cs / base;
     const sum = el("div", "summary");
-    sum.append(fmtTime(cs) + " ÷ " + fmtTime(base) + " (top 10 " + (state.kind === "average" ? "average" : "single") + " in " + R.events[state.base].name + ") = ", el("b", null, ratio.toFixed(2)), ". Each event's top 10 average below is multiplied by " + ratio.toFixed(2) + " to get your ideal time.");
+    sum.append("The ten best all-round cubers " + (state.kind === "average" ? "average " : "get ") + fmtTime(base) + " in " + R.events[state.base].name + ". Your " + fmtTime(cs) + " is ", el("b", null, ratio.toFixed(2) + "×"), " theirs, so each event below is their time × " + ratio.toFixed(2) + ".");
     out.append(sum);
     const card2 = el("div", "card"); card2.style.padding = "6px 12px";
     const tbl = el("table", "tbl");
-    const hd = el("tr"); hd.append(el("th", null, "Event"), el("th", "n", "Top 10 avg"), el("th", "n", "Your ideal time")); tbl.append(hd);
+    const hd = el("tr"); hd.append(el("th", null, "Event"), el("th", "n", "Elite all-rounder"), el("th", "n", "Your ideal time")); tbl.append(hd);
     const lines = [], cells = [], cmp = [];
     for (const ev of calcEvents()) {
       const w = wr(ev); if (w === null) continue;
@@ -387,7 +386,7 @@ async function saveCard(btn, d) {
   g.fillText(title, 72, 210);
   g.fillStyle = "#98a3b1"; g.font = "400 38px " + F;
   g.fillText("Based on " + fmtTime(d.cs) + " in " + d.base + " (" + d.kind + ")", 72, 272);
-  g.fillText(d.ratio.toFixed(2) + "× the top 10 all-rounders, applied to every event", 72, 322);
+  g.fillText(d.ratio.toFixed(2) + "× the ten best all-rounders, in every event", 72, 322);
   const withPR = d.cells.some(x => x.pr), top = withPR && d.cmp ? 436 : 372, ch = withPR ? 148 : 124, pitch = ch + 18;
   if (withPR && d.cmp) {
     g.font = "600 28px " + F; g.fillStyle = "#56d364"; g.fillText("Strongest: " + d.cmp.best.name, 72, 378);
@@ -412,42 +411,6 @@ async function saveCard(btn, d) {
   setTimeout(() => URL.revokeObjectURL(url), 5000); flash(btn, "Image saved");
 }
 
-/* ---------- records ---------- */
-function renderRecords(v) {
-  const card = el("div", "card");
-  const all = ORDER.concat(["333bf", "333fm", "444bf", "555bf", "333mbf"]);
-  for (const ev of all) {
-    const e = R.events[ev]; if (!e) continue;
-    const blk = el("div", "evblock"); blk.append(el("div", "evt", e.name));
-    for (const kind of ["single", "average"]) {
-      const r = e[kind]; if (!r) continue;
-      const rec = el("div", "rec");
-      const h = el("div", "h"); const k = el("span", "k", kind === "single" ? "Single" : (ev === "333fm" || ev.endsWith("bf") ? "Mean" : "Average"));
-      if (daysSince(r.date) <= 30) k.append(el("span", "chip new", "New"));
-      h.append(k, el("span", "v", fmtRec(ev, kind, r.value)));
-      const w = el("div", "w"); w.append(holdersEl(r.holders));
-      const s = el("div", "sm"); s.append(compLink(r.comp), " · " + fmtDate(r.date));
-      if (r.prev) s.append(" · beat " + fmtRec(ev, kind, r.prev));
-      rec.append(h, w, s); blk.append(rec);
-    }
-    card.append(blk);
-  }
-  v.append(card);
-  v.append(el("h2", null, "Latest records broken"));
-  const c2 = el("div", "card"); const ul = el("ul", "feed");
-  for (const r of R.recent.slice(0, 25)) {
-    const li = el("li");
-    const names = holdersEl(r.holders);
-    li.append(names, " — " + R.events[r.event].name + " " + (r.kind === "single" ? "single" : (r.event === "333fm" || r.event.endsWith("bf") ? "mean" : "average")) + " ");
-    li.append(el("b", null, fmtRec(r.event, r.kind, r.value)));
-    if (r.prev) li.append(el("span", "sm", " (was " + fmtRec(r.event, r.kind, r.prev) + ")"));
-    const d = el("div", "d"); d.append(compLink(r.comp), " · " + fmtDate(r.date)); li.append(d);
-    ul.append(li);
-  }
-  c2.append(ul); v.append(c2);
-}
-
-
 /* ---------- top 10 ---------- */
 function renderTop(v) {
   const T = R.top10 && R.top10[state.kind];
@@ -455,12 +418,12 @@ function renderTop(v) {
   const seg = el("div", "seg");
   [["average", "Average"], ["single", "Single"]].forEach(([k, l]) => { const b = el("button", null, l); b.type = "button"; b.setAttribute("aria-pressed", state.kind === k ? "true" : "false");
     b.addEventListener("click", () => { state.kind = k; store("kind", k); if (prof && PR) fillFromProfile(); render(); }); seg.append(b); });
-  head.append(seg, el("p", "sm", "The ten cubers with the lowest Sum of Ranks across the 12 events (3x3, 2x2, 4x4, 5x5, 6x6, 7x7, One-Handed, Clock, Megaminx, Pyraminx, Skewb, Square-1), using their personal best " + state.kind + "s. Events someone hasn't done count as one rank past the last ranked person. This list is rebuilt every day from the WCA export."));
+  head.append(seg, el("p", "sm", "The ten best all-rounders: the cubers with the best combined ranking across the 12 events (3x3, 2x2, 4x4, 5x5, 6x6, 7x7, One-Handed, Clock, Megaminx, Pyraminx, Skewb, Square-1). They're strong everywhere, not just in one event. Times shown are their personal best " + state.kind + "s. The list is rebuilt every day from the WCA export."));
   v.append(head);
   if (!T || !T.people.length) { v.append(el("div", "msg", "No data yet.")); return; }
   const c1 = el("div", "card"); c1.style.padding = "6px 12px";
-  c1.append(el("label", "t", "Benchmark: average of the top 10"));
-  const tb = el("table", "tbl"); const hd = el("tr"); hd.append(el("th", null, "Event"), el("th", "n", "Top 10 average")); tb.append(hd);
+  c1.append(el("label", "t", "What the ten best all-rounders " + (state.kind === "average" ? "average" : "get")));
+  const tb = el("table", "tbl"); const hd = el("tr"); hd.append(el("th", null, "Event"), el("th", "n", "Their " + state.kind)); tb.append(hd);
   T.events.forEach(ev => { if (!T.mean[ev]) return; const tr = el("tr"); tr.append(el("td", null, R.events[ev].name), el("td", "n b", fmtTime(T.mean[ev]))); tb.append(tr); });
   c1.append(tb); v.append(c1);
   const c2 = el("div", "card");
@@ -483,13 +446,11 @@ function render() {
   const v = $("view"); v.replaceChildren();
   $("tab-calc").setAttribute("aria-selected", state.tab === "calc");
   $("tab-top").setAttribute("aria-selected", state.tab === "top");
-  $("tab-rec").setAttribute("aria-selected", state.tab === "rec");
   if (!R) return;
-  if (state.tab === "calc") renderCalc(v); else if (state.tab === "top") renderTop(v); else renderRecords(v);
+  if (state.tab === "top") renderTop(v); else renderCalc(v);
 }
 $("tab-calc").addEventListener("click", () => { state.tab = "calc"; render(); });
 $("tab-top").addEventListener("click", () => { state.tab = "top"; render(); window.scrollTo(0, 0); });
-$("tab-rec").addEventListener("click", () => { state.tab = "rec"; render(); window.scrollTo(0, 0); });
 
 async function fetchRetry(url) {
   let err;
@@ -514,7 +475,7 @@ async function boot() {
     v.replaceChildren(box, b); return;
   }
   const t = (R.updated || "").replace(" UTC", "");
-  $("updated").textContent = t ? "Records from the WCA export of " + t + " UTC, checked daily." : "";
+  $("updated").textContent = t ? "Data from the WCA export of " + t + " UTC, checked daily." : "";
   if (!R.events[state.base]) state.base = "333";
   render();
   if (prof) loadPR(prof.id).then(d => { if (d) { PR = d.pr; render(); } else { prof = null; store("profile", ""); render(); } }).catch(() => {});
