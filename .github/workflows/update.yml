@@ -1,0 +1,58 @@
+name: Update records
+
+on:
+  schedule:
+    - cron: '7 1 * * *'        # every day, after the WCA publishes its export (~00:30 UTC)
+  workflow_dispatch:            # lets you press "Run workflow" by hand
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download WCA export
+        run: curl -sSL --fail --retry 3 -o "$RUNNER_TEMP/export.zip" https://www.worldcubeassociation.org/export/results/v2/tsv
+
+      - name: Build site
+        run: |
+          mkdir -p site
+          python3 build_records.py "$RUNNER_TEMP/export.zip" site
+          cp index.html site/index.html
+
+      - name: Check the site folder
+        run: |
+          ls -la site
+          python3 -c "import json,sys; d=json.load(open('site/records.json')); assert len(d['events'])>=15, 'too few events'; assert d['recent'], 'no records'"
+          test -s site/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - name: Wait for the upload to register
+        run: sleep 15
+
+      - id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before retrying the deploy
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 45
+
+      - id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
