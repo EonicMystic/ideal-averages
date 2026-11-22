@@ -62,6 +62,15 @@
   .chip { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: 2px; }
   .chip.new { background: var(--good-soft); color: var(--good); }
   .chip.you { background: var(--accent); color: #fff; }
+  .tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .tbl th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 10px 4px; border-bottom: 1px solid var(--line); }
+  .tbl td { padding: 11px 4px; border-bottom: 1px solid var(--line); }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl .n { text-align: right; }
+  .tbl td.b { font-weight: 800; font-size: 1.1rem; }
+  .tbl tr.base td { background: var(--good-soft); }
+  .tbl tr.base td:first-child { border-radius: 8px 0 0 8px; padding-left: 8px; }
+  .tbl tr.base td:last-child { border-radius: 0 8px 8px 0; padding-right: 8px; }
   .btn { border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: .9rem; font-weight: 600; padding: 9px 14px; border-radius: 10px; cursor: pointer; }
   .btn:active { transform: scale(.98); }
   .rec { padding: 12px 2px; border-bottom: 1px solid var(--line); }
@@ -99,7 +108,7 @@
   <div id="view"></div>
   <footer>
     <div id="updated">Loading records…</div>
-    <p>How it works: each event's world record is divided by the 3x3 (or your chosen event's) world record to get a ratio, and your time is multiplied by that ratio. It's a rough guide to where you'd be if you were equally strong everywhere, not a prediction. Records come from the official WCA results export, checked every day. This is an unofficial fan-made tool.</p>
+    <p>How it works: your time is divided by the world record in your event to get a number. Every other event's world record is multiplied by that same number to give your ideal time there. It's a rough guide to where you'd be if you were equally strong everywhere, not a prediction. Records come from the official WCA results export, checked every day. This is an unofficial fan-made tool.</p>
   </footer>
 </div>
 <script>
@@ -155,6 +164,7 @@ function holdersEl(hs) {
 
 /* ---------- calculator ---------- */
 function calcEvents() { return ORDER.concat(state.blind ? BLIND : []); }
+function has(ev) { return wr(ev) !== null; }
 function wr(ev) { const e = R.events[ev]; return e && e[state.kind] ? e[state.kind].value : null; }
 
 function renderCalc(v) {
@@ -164,7 +174,7 @@ function renderCalc(v) {
   const drawPills = () => {
     pills.replaceChildren();
     for (const ev of calcEvents()) {
-      if (wr(ev) === null) continue;
+      if (!has(ev)) continue;
       const b = el("button", "pill", R.events[ev].name); b.type = "button"; b.setAttribute("aria-pressed", ev === state.base ? "true" : "false");
       b.addEventListener("click", () => { state.base = ev; store("base", ev); drawPills(); drawResults(); });
       pills.append(b);
@@ -195,20 +205,20 @@ function renderCalc(v) {
     if (cs === null || base === null) { out.append(el("div", "msg", "Enter a time above to see your ideal times in every event.")); return; }
     const ratio = cs / base;
     const sum = el("div", "summary");
-    sum.append("Your ", el("b", null, fmtTime(cs)), " is ", el("b", null, ratio.toFixed(2) + "×"), " the " + R.events[state.base].name + " world record " + state.kind + " (" + fmtTime(base) + ").");
+    sum.append(fmtTime(cs) + " ÷ " + fmtTime(base) + " (" + R.events[state.base].name + " world record " + state.kind + ") = ", el("b", null, ratio.toFixed(2)), ". Each world record below is multiplied by " + ratio.toFixed(2) + " to get your ideal time.");
     out.append(sum);
-    const card2 = el("div", "card"); const ul = el("ul", "res");
+    const card2 = el("div", "card"); card2.style.padding = "6px 12px";
+    const tbl = el("table", "tbl");
+    const hd = el("tr"); hd.append(el("th", null, "Event"), el("th", "n", "World record"), el("th", "n", "Your ideal time")); tbl.append(hd);
     const lines = [];
     for (const ev of calcEvents()) {
       const w = wr(ev); if (w === null) continue;
-      const ideal = w * ratio, isBase = ev === state.base;
-      const li = el("li", isBase ? "base" : "");
-      const name = el("div", "ev", R.events[ev].name); if (isBase) name.append(el("span", "chip you", "You"));
-      li.append(name, el("div", "big", fmtTime(isBase ? cs : ideal)));
-      li.append(el("div", "meta", "World record " + fmtTime(w)), el("div", "meta r", "×" + (w / base).toFixed(2) + " vs " + R.events[state.base].name));
-      ul.append(li); lines.push(R.events[ev].name + ": " + fmtTime(isBase ? cs : ideal));
+      const isBase = ev === state.base, ideal = isBase ? cs : w * ratio;
+      const tr = el("tr", isBase ? "base" : "");
+      tr.append(el("td", null, R.events[ev].name), el("td", "n", fmtTime(w)), el("td", "n b", fmtTime(ideal)));
+      tbl.append(tr); lines.push(R.events[ev].name + ": " + fmtTime(ideal));
     }
-    card2.append(ul); out.append(card2);
+    card2.append(tbl); out.append(card2);
     const copy = el("button", "btn", "Copy these times"); copy.type = "button";
     copy.addEventListener("click", async () => {
       const txt = "My ideal " + state.kind + "s (from my " + fmtTime(cs) + " " + R.events[state.base].name + "):\n" + lines.join("\n");
