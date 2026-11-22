@@ -6,7 +6,7 @@ on:
   workflow_dispatch:            # lets you press "Run workflow" by hand
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -39,6 +39,20 @@ jobs:
           python3 -c "import json,sys; d=json.load(open('site/records.json')); assert len(d['events'])>=15, 'too few events'; assert d['recent'], 'no records'"
           test -s site/index.html
           test "$(ls site/p | wc -l)" -gt 1000
+
+      - name: Keep the schedule alive
+        run: |
+          # GitHub switches off scheduled runs after 60 days without any commit, so make a tiny one monthly
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          if [ $((now - last)) -gt 2592000 ]; then
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            date -u +%F > .keepalive
+            git add .keepalive
+            git commit -m "Keep scheduled runs alive"
+            git push
+          fi
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
