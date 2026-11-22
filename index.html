@@ -71,6 +71,16 @@
   .tbl tr.base td { background: var(--good-soft); }
   .tbl tr.base td:first-child { border-radius: 8px 0 0 8px; padding-left: 8px; }
   .tbl tr.base td:last-child { border-radius: 0 8px 8px 0; padding-right: 8px; }
+  .prof { margin-bottom: 4px; }
+  input.psearch { width: 100%; font: inherit; font-size: 1rem; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  input.psearch:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .plist { margin-top: 6px; }
+  .plist .sm { padding: 6px 2px; display: block; }
+  .prow { display: flex; justify-content: space-between; gap: 10px; width: 100%; text-align: left; font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 6px; cursor: pointer; }
+  .profchip { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--accent-soft); border-radius: 12px; padding: 10px 12px; }
+  .tbl .pr { font-size: .74rem; font-weight: 600; margin-top: 2px; }
+  .tbl .pr.good { color: var(--good); }
+  .tbl .pr.slow { color: var(--warn); }
   .btn { border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: .9rem; font-weight: 600; padding: 9px 14px; border-radius: 10px; cursor: pointer; }
   .btn:active { transform: scale(.98); }
   .rec { padding: 12px 2px; border-bottom: 1px solid var(--line); }
@@ -120,7 +130,7 @@ function store(k, v) { try { if (v === undefined) return localStorage.getItem(k)
 const ORDER = ["333", "222", "444", "555", "666", "777", "333oh", "clock", "minx", "pyram", "skewb", "sq1"];
 const BLIND = ["333bf", "444bf", "555bf"];
 let R = null;                       // records.json
-let state = { tab: "calc", base: store("base") || "333", kind: store("kind") === "single" ? "single" : "average", text: store("val") || "", blind: store("blind") === "1" };
+let state = { tab: "calc", base: store("base") || "333", kind: store("kind") === "single" ? "single" : "average", text: store("val") || "" };
 
 /* ---------- formatting ---------- */
 function fmtTime(cs) {
@@ -162,21 +172,107 @@ function holdersEl(hs) {
   return s;
 }
 
+/* ---------- WCA profile: search + personal bests ---------- */
+const PEVS = ["333", "222", "444", "555", "666", "777", "333oh", "clock", "minx", "pyram", "skewb", "sq1"];
+let prof = null, PR = null, profNote = "";
+try { prof = JSON.parse(store("profile") || "null"); } catch (e) { prof = null; }
+if (prof && !(prof.id && prof.name)) prof = null;
+const foldq = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const bucketOf = tok => { const k = tok.slice(0, 3); return /^[a-z0-9]{2,3}$/.test(k) ? k : "_" + (tok.codePointAt(0) % 64); };
+function shardOf(w) { let h = 0; for (let k = 0; k < w.length; k++) h = (h * 31 + w.charCodeAt(k)) % 1000003; return h % 256; }
+const b36n = t => t ? parseInt(t, 36) : 0;
+async function loadPR(id) {
+  const r = await fetchRetry("p/" + shardOf(id) + ".txt");
+  for (const ln of (await r.text()).split("\n")) {
+    if (!ln.startsWith(id + "|")) continue;
+    const p = ln.split("|"), out = {};
+    (p[2] || "").split(",").forEach((f, i) => { if (!f) return; const [a, b] = f.split("."); out[PEVS[i]] = [b36n(a), b36n(b)]; });
+    return { name: p[1], pr: out };
+  }
+  return null;
+}
+function prValue(ev, kind) { return PR && PR[ev] ? (PR[ev][kind === "average" ? 1 : 0] || 0) : 0; }
+function fillFromProfile() {
+  if (!prof || !PR) return;
+  const x = prValue(state.base, state.kind);
+  if (x > 0) { state.text = fmtTime(x); store("val", state.text); profNote = "Filled in from " + prof.name + "'s official " + state.kind + " PR."; }
+  else { state.text = ""; profNote = prof.name + " has no official " + state.kind + " in " + R.events[state.base].name + "."; }
+}
+const buckets = new Map();
+async function searchPeople(q) {
+  const raw = q.trim();
+  if (/^\d{4}[a-z]{4}\d{2}$/i.test(raw)) { const d = await loadPR(raw.toUpperCase()); return d ? [{ id: raw.toUpperCase(), name: d.name }] : []; }
+  const toks = foldq(raw).split(/[^\p{L}\p{N}_]+/u).filter(t => t.length >= 2);
+  if (!toks.length) return null;
+  const long = toks.reduce((a, b) => b.length > a.length ? b : a), key = bucketOf(long);
+  let rows = buckets.get(key);
+  if (!rows) {
+    const r = await fetch("p/s_" + key + ".txt");
+    rows = r.ok ? (await r.text()).split("\n").filter(Boolean).map(l => { const i = l.indexOf("\t"); return { id: l.slice(0, i), name: l.slice(i + 1) }; }) : [];
+    buckets.set(key, rows);
+  }
+  const hit = [];
+  for (const r of rows) {
+    if (r.f === undefined) r.f = foldq(r.name);
+    if (toks.every(t => r.f.includes(t))) hit.push(r);
+    if (hit.length >= 60) break;
+  }
+  hit.sort((a, b) => (b.f.startsWith(toks[0]) ? 1 : 0) - (a.f.startsWith(toks[0]) ? 1 : 0));
+  return hit.slice(0, 8);
+}
+async function chooseProfile(id, name) {
+  const d = await loadPR(id);
+  if (!d) throw new Error("profile");
+  prof = { id, name: d.name || name }; PR = d.pr; store("profile", JSON.stringify(prof));
+  if (prValue(state.base, state.kind) <= 0) { const first = PEVS.find(e => prValue(e, state.kind) > 0); if (first) { state.base = first; store("base", first); } }
+  fillFromProfile();
+}
+
 /* ---------- calculator ---------- */
-function calcEvents() { return ORDER.concat(state.blind ? BLIND : []); }
+function calcEvents() { return ORDER; }
 function has(ev) { return wr(ev) !== null; }
 function wr(ev) { const e = R.events[ev]; return e && e[state.kind] ? e[state.kind].value : null; }
 
 function renderCalc(v) {
   const card = el("div", "card");
-  const l1 = el("label", "t", "Your event"); card.append(l1);
+  const pb = el("div", "prof");
+  if (prof) {
+    const chip = el("div", "profchip"); const who = el("div"); who.append(el("b", null, prof.name), el("div", "sm", prof.id));
+    const chg = el("button", "btn", "Change"); chg.type = "button";
+    chg.addEventListener("click", () => { prof = null; PR = null; profNote = ""; store("profile", ""); render(); });
+    chip.append(who, chg); pb.append(el("label", "t", "Your WCA profile"), chip);
+  } else {
+    pb.append(el("label", "t", "Your WCA profile (optional)"));
+    const si = el("input"); si.type = "text"; si.className = "psearch"; si.placeholder = "Search your name or WCA ID"; si.autocomplete = "off"; si.autocapitalize = "off"; si.spellcheck = false;
+    const list = el("div", "plist");
+    let seq = 0, t;
+    si.addEventListener("input", () => {
+      clearTimeout(t); const my = ++seq;
+      t = setTimeout(async () => {
+        list.replaceChildren();
+        if (!si.value.trim()) return;
+        let res; try { res = await searchPeople(si.value); } catch (e) { if (my === seq) list.append(el("div", "sm", "Search isn't available right now.")); return; }
+        if (my !== seq) return;
+        if (res === null) { list.append(el("div", "sm", "Keep typing…")); return; }
+        if (!res.length) { list.append(el("div", "sm", "No one found. Try your first and last name, or your full WCA ID.")); return; }
+        for (const r of res) {
+          const b = el("button", "prow"); b.type = "button"; b.append(el("span", null, r.name), el("span", "sm", r.id));
+          b.addEventListener("click", async () => { list.replaceChildren(el("div", "sm", "Loading…")); try { await chooseProfile(r.id, r.name); render(); } catch (e) { list.replaceChildren(el("div", "sm", "Couldn't load that profile. Try again.")); } });
+          list.append(b);
+        }
+      }, 200);
+    });
+    pb.append(si, list);
+  }
+  card.append(pb);
+  const l1 = el("label", "t", "Your event"); l1.style.marginTop = "14px"; card.append(l1);
   const pills = el("div", "pills");
   const drawPills = () => {
     pills.replaceChildren();
     for (const ev of calcEvents()) {
       if (!has(ev)) continue;
       const b = el("button", "pill", R.events[ev].name); b.type = "button"; b.setAttribute("aria-pressed", ev === state.base ? "true" : "false");
-      b.addEventListener("click", () => { state.base = ev; store("base", ev); drawPills(); drawResults(); });
+      b.addEventListener("click", () => { state.base = ev; store("base", ev); if (prof && PR) { fillFromProfile(); inp.value = state.text; noteEl.textContent = profNote || "Seconds, or minutes:seconds. Use a decimal point."; } drawPills(); drawResults(); });
       pills.append(b);
     }
   };
@@ -184,16 +280,14 @@ function renderCalc(v) {
   const f = el("div", "field");
   f.append(el("label", "t", state.kind === "average" ? "Your average" : "Your single"));
   const inp = el("input"); inp.type = "text"; inp.inputMode = "decimal"; inp.placeholder = "e.g. 12.50 or 1:05.30"; inp.autocomplete = "off"; inp.spellcheck = false; inp.setAttribute("aria-label", "Your time"); inp.value = state.text;
-  f.append(inp, el("div", "hint", "Seconds, or minutes:seconds. Use a decimal point."));
+  const noteEl = el("div", "hint", (prof && profNote) || (prof && !PR ? "Loading your PRs…" : "Seconds, or minutes:seconds. Use a decimal point."));
+  f.append(inp, noteEl);
   card.append(f);
   const row = el("div", "row2");
   const seg = el("div", "seg");
-  const mk = (k, label) => { const b = el("button", null, label); b.type = "button"; b.setAttribute("aria-pressed", state.kind === k ? "true" : "false"); b.addEventListener("click", () => { state.kind = k; store("kind", k); render(); }); return b; };
+  const mk = (k, label) => { const b = el("button", null, label); b.type = "button"; b.setAttribute("aria-pressed", state.kind === k ? "true" : "false"); b.addEventListener("click", () => { state.kind = k; store("kind", k); if (prof && PR) fillFromProfile(); render(); }); return b; };
   seg.append(mk("average", "Average"), mk("single", "Single"));
-  const sw = el("label", "sw"); const cb = el("input"); cb.type = "checkbox"; cb.checked = state.blind;
-  cb.addEventListener("change", () => { state.blind = cb.checked; store("blind", cb.checked ? "1" : "0"); if (!calcEvents().includes(state.base)) { state.base = "333"; store("base", "333"); } drawPills(); drawResults(); });
-  sw.append(cb, document.createTextNode("Include blindfolded"));
-  row.append(seg, sw); card.append(row);
+  row.append(seg); card.append(row);
   v.append(card);
 
   const out = el("div");
@@ -215,7 +309,10 @@ function renderCalc(v) {
       const w = wr(ev); if (w === null) continue;
       const isBase = ev === state.base, ideal = isBase ? cs : w * ratio;
       const tr = el("tr", isBase ? "base" : "");
-      tr.append(el("td", null, R.events[ev].name), el("td", "n", fmtTime(w)), el("td", "n b", fmtTime(ideal)));
+      const td = el("td", "n b", fmtTime(ideal));
+      const mine = isBase ? 0 : prValue(ev, state.kind);
+      if (mine > 0) { const ahead = mine <= ideal; td.append(el("div", "pr " + (ahead ? "good" : "slow"), "Your PR " + fmtTime(mine) + " · " + fmtTime(Math.abs(ideal - mine)) + (ahead ? " ahead" : " behind"))); }
+      tr.append(el("td", null, R.events[ev].name), el("td", "n", fmtTime(w)), td);
       tbl.append(tr); lines.push(R.events[ev].name + ": " + fmtTime(ideal));
     }
     card2.append(tbl); out.append(card2);
@@ -227,7 +324,7 @@ function renderCalc(v) {
     });
     out.append(copy);
   };
-  inp.addEventListener("input", () => { state.text = inp.value; store("val", inp.value); drawResults(); });
+  inp.addEventListener("input", () => { state.text = inp.value; store("val", inp.value); if (profNote) { profNote = ""; noteEl.textContent = "Seconds, or minutes:seconds. Use a decimal point."; } drawResults(); });
   drawPills(); drawResults();
 }
 
@@ -303,6 +400,7 @@ async function boot() {
   $("updated").textContent = t ? "Records from the WCA export of " + t + " UTC, checked daily." : "";
   if (!R.events[state.base]) state.base = "333";
   render();
+  if (prof) loadPR(prof.id).then(d => { if (d) { PR = d.pr; render(); } else { prof = null; store("profile", ""); render(); } }).catch(() => {});
 }
 boot();
 </script>
