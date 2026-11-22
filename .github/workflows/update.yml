@@ -31,6 +31,7 @@ jobs:
           mkdir -p site
           python3 build_records.py "$RUNNER_TEMP/export.zip" site
           cp index.html site/index.html
+          cp averages-preview.png site/averages-preview.png || echo "no preview image found, skipping"
 
       - name: Check the site folder
         run: |
