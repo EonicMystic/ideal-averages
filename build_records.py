@@ -5,7 +5,7 @@ Usage: python3 build_records.py <WCA_export_tsv.zip | folder_with_tsvs> <output_
 Writes <output_dir>/records.json. Uses the export's own regional record flags (WR), so
 it matches the official records.
 """
-import datetime, json, os, sys, tempfile, zipfile
+import datetime, json, os, shutil, sys, tempfile, zipfile
 from collections import defaultdict
 
 src, out_dir = sys.argv[1], sys.argv[2]
@@ -53,16 +53,28 @@ for idx, p in rows('competitions'):
     comps[p[idx['id']]] = (p[idx['name']], f'{ey:04d}-{em:02d}-{ed:02d}')
 
 country = {}
+pname = {}
 for idx, p in rows('persons'):
     if p[idx['sub_id']] == '1' or p[idx['wca_id']] not in country:
         country[p[idx['wca_id']]] = p[idx['country_id']]
+        pname[p[idx['wca_id']]] = p[idx['name']]
 
+# everyone's personal best single and average per calculator event (for the profile search)
+PEVS = ['333', '222', '444', '555', '666', '777', '333oh', 'clock', 'minx', 'pyram', 'skewb', 'sq1']
+PEVSET = set(PEVS)
+pbest = {}          # person -> {event: [single, average]}
 ROUND = {'0': 0, '1': 1, 'd': 2, '2': 3, 'e': 4, '3': 5, 'g': 6, 'f': 7, 'b': 8, 'c': 9}
 recs = {'single': defaultdict(list), 'average': defaultdict(list)}
 for idx, p in rows('results'):
     ev = p[idx['event_id']]
     if ev not in EVSET:
         continue
+    if ev in PEVSET:
+        b_, a_ = int(p[idx['best']]), int(p[idx['average']])
+        if b_ > 0 or a_ > 0:
+            rec_ = pbest.setdefault(p[idx['person_id']], {}).setdefault(ev, [0, 0])
+            if b_ > 0 and (rec_[0] == 0 or b_ < rec_[0]): rec_[0] = b_
+            if a_ > 0 and (rec_[1] == 0 or a_ < rec_[1]): rec_[1] = a_
     for kind, col, flag in (('single', 'best', 'regional_single_record'), ('average', 'average', 'regional_average_record')):
         if p[idx[flag]] != 'WR':
             continue
@@ -109,4 +121,60 @@ feed.sort(key=lambda x: (x['date'], x['event']), reverse=True)
 out['recent'] = feed[:60]
 with open(os.path.join(out_dir, 'records.json'), 'w', encoding='utf-8') as f:
     json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
+
+
+# ---------- profile search + personal bests (sharded so a profile loads in a few KB) ----------
+def b36(n):
+    d = '0123456789abcdefghijklmnopqrstuvwxyz'
+    if n == 0: return '0'
+    o = ''
+    while n: n, m = divmod(n, 36); o = d[m] + o
+    return o
+def shard_of(w):
+    h = 0
+    for ch in w:
+        h = (h * 31 + ord(ch)) % 1000003
+    return h % 256
+pdir = os.path.join(out_dir, 'p')
+shutil.rmtree(pdir, ignore_errors=True)
+os.makedirs(pdir)
+shards = {}
+index = []
+for pid, evs in pbest.items():
+    if not any(v[1] for v in evs.values()):
+        continue                                   # search lists people with at least one official average
+    fields = []
+    for ev in PEVS:
+        v = evs.get(ev)
+        fields.append('' if not v else (b36(v[0]) if v[0] else '') + '.' + (b36(v[1]) if v[1] else ''))
+    while fields and fields[-1] == '':
+        fields.pop()
+    shards.setdefault(shard_of(pid), []).append(pid + '|' + pname.get(pid, pid).replace('|', '/').replace('\t', ' ') + '|' + ','.join(fields))
+    index.append(pid + '\t' + pname.get(pid, pid).replace('\t', ' '))
+for k, lines in shards.items():
+    with open(os.path.join(pdir, f'{k}.txt'), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+import re, unicodedata
+def fold(t):
+    return ''.join(c for c in unicodedata.normalize('NFD', t) if not unicodedata.combining(c)).lower()
+def bucket(tok):
+    k = tok[:3]
+    return k if re.fullmatch(r'[a-z0-9]{2,3}', k) else '_' + str(ord(tok[0]) % 64)
+buckets = {}
+for line in index:
+    pid, name = line.split('\t')
+    seen = set()
+    for tok in re.split(r'[^\w]+', fold(name)):
+        if len(tok) < 2:
+            continue
+        k = bucket(tok)
+        if k in seen:
+            continue
+        seen.add(k)
+        buckets.setdefault(k, []).append(line)
+for k, lines in buckets.items():
+    lines.sort(key=lambda x: x.split('\t')[1].lower())
+    with open(os.path.join(pdir, f's_{k}.txt'), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+print('profiles:', len(index), 'data shards:', len(shards), 'search buckets:', len(buckets))
 print('done', len(out['events']), 'events; latest record date', feed[0]['date'] if feed else '-', '; export', stamp)
