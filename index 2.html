@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ideal Averages</title>
+<meta name="description" content="Type your average in one cubing event and see the matching times in every other event, scaled from the current world records. Updated daily from the WCA export.">
+<meta name="theme-color" content="#0b0f14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f14'/%3E%3Cg fill='%2358a6ff'%3E%3Crect x='12' y='12' width='11' height='11' rx='2'/%3E%3Crect x='26.5' y='12' width='11' height='11' rx='2' opacity='.7'/%3E%3Crect x='41' y='12' width='11' height='11' rx='2' opacity='.45'/%3E%3Crect x='12' y='26.5' width='11' height='11' rx='2' opacity='.7'/%3E%3Crect x='26.5' y='26.5' width='11' height='11' rx='2'/%3E%3Crect x='41' y='26.5' width='11' height='11' rx='2' opacity='.7'/%3E%3Crect x='12' y='41' width='11' height='11' rx='2' opacity='.45'/%3E%3Crect x='26.5' y='41' width='11' height='11' rx='2' opacity='.7'/%3E%3Crect x='41' y='41' width='11' height='11' rx='2'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f5f7fa; --card: #ffffff; --text: #12161c; --muted: #5b6573; --line: #e2e6ec;
+    --accent: #1f6feb; --accent-soft: #e4eeff; --good: #1a7f37; --good-soft: #dcf5e3; --warn: #b4540a;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 14px rgba(16,24,40,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0f14; --card: #131921; --text: #e8ecf1; --muted: #98a3b1; --line: #242d38;
+      --accent: #58a6ff; --accent-soft: #14283f; --good: #56d364; --good-soft: #12351f; --warn: #f0a050;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b0f14; --card: #131921; --text: #e8ecf1; --muted: #98a3b1; --line: #242d38;
+    --accent: #58a6ff; --accent-soft: #14283f; --good: #56d364; --good-soft: #12351f; --warn: #f0a050; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 1.55rem; letter-spacing: -.02em; margin: 6px 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: .95rem; }
+  .tabs { display: flex; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .tabs button { flex: 1; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600; padding: 9px 8px; border-radius: 9px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 14px; }
+  label.t { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; margin: 0 -2px; }
+  .pills::-webkit-scrollbar { display: none; }
+  .pill { flex: 0 0 auto; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: .9rem; padding: 7px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .field { margin-top: 14px; }
+  input[type=text] { width: 100%; font: inherit; font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-variant-numeric: tabular-nums; }
+  input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .hint { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+  .row2 { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; background: var(--bg); color: var(--muted); font: inherit; font-size: .88rem; padding: 7px 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  .sw { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; cursor: pointer; user-select: none; }
+  .sw input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .summary { padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--text); font-size: .95rem; margin-bottom: 12px; }
+  .summary b { color: var(--accent); }
+  .res { list-style: none; margin: 0; padding: 0; }
+  .res li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 2px; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .res li:last-child { border-bottom: 0; }
+  .res .ev { font-weight: 600; }
+  .res .big { font-size: 1.35rem; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .res .meta { color: var(--muted); font-size: .82rem; }
+  .res .meta.r { text-align: right; }
+  .res li.base { background: var(--accent-soft); border-radius: 10px; padding: 12px 10px; margin: 4px 0; border-bottom: 0; }
+  .chip { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: 2px; }
+  .chip.new { background: var(--good-soft); color: var(--good); }
+  .chip.you { background: var(--accent); color: #fff; }
+  .btn { border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: .9rem; font-weight: 600; padding: 9px 14px; border-radius: 10px; cursor: pointer; }
+  .btn:active { transform: scale(.98); }
+  .rec { padding: 12px 2px; border-bottom: 1px solid var(--line); }
+  .rec:last-child { border-bottom: 0; }
+  .rec .h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .rec .h b { font-size: 1.02rem; }
+  .rec .v { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .rec .k { color: var(--muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .rec .w { font-size: .9rem; margin-top: 2px; }
+  .rec .w a, .feed a, .sm a { color: var(--accent); text-decoration: none; }
+  .rec .w a:hover, .feed a:hover, .sm a:hover { text-decoration: underline; }
+  .sm { color: var(--muted); font-size: .82rem; }
+  .evblock { padding: 4px 0 10px; }
+  .evblock + .evblock { border-top: 1px solid var(--line); padding-top: 12px; }
+  .evt { font-weight: 800; font-size: 1.05rem; margin: 0 0 4px; }
+  .feed { list-style: none; margin: 0; padding: 0; }
+  .feed li { padding: 11px 2px; border-bottom: 1px solid var(--line); font-size: .93rem; }
+  .feed li:last-child { border-bottom: 0; }
+  .feed .d { color: var(--muted); font-size: .8rem; }
+  h2 { font-size: 1.02rem; margin: 22px 2px 10px; letter-spacing: -.01em; }
+  .msg { color: var(--muted); padding: 22px 6px; text-align: center; }
+  footer { color: var(--muted); font-size: .82rem; margin-top: 26px; }
+  footer a { color: var(--accent); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ideal Averages</h1>
+  <p class="sub">Your average in one event, matched to every other event using the current world records.</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-calc" aria-selected="true">Calculator</button>
+    <button role="tab" id="tab-rec" aria-selected="false">World records</button>
+  </div>
+  <div id="view"></div>
+  <footer>
+    <div id="updated">Loading records…</div>
+    <p>How it works: each event's world record is divided by the 3x3 (or your chosen event's) world record to get a ratio, and your time is multiplied by that ratio. It's a rough guide to where you'd be if you were equally strong everywhere, not a prediction. Records come from the official WCA results export, checked every day. This is an unofficial fan-made tool.</p>
+  </footer>
+</div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
+
+const ORDER = ["333", "222", "444", "555", "666", "777", "333oh", "clock", "minx", "pyram", "skewb", "sq1"];
+const BLIND = ["333bf", "444bf", "555bf"];
+let R = null;                       // records.json
+let state = { tab: "calc", base: store("base") || "333", kind: store("kind") === "single" ? "single" : "average", text: store("val") || "", blind: store("blind") === "1" };
+
+/* ---------- formatting ---------- */
+function fmtTime(cs) {
+  cs = Math.round(cs);
+  if (cs < 6000) return (cs / 100).toFixed(2);
+  const h = Math.floor(cs / 360000), m = Math.floor(cs / 6000) % 60, s = (cs % 6000) / 100;
+  const ss = (s < 10 ? "0" : "") + s.toFixed(2);
+  return h ? h + ":" + String(m).padStart(2, "0") + ":" + ss : m + ":" + ss;
+}
+function fmtRec(ev, kind, v) {
+  if (ev === "333mbf") {
+    const dd = Math.floor(v / 1e7), tt = Math.floor(v / 100) % 100000, mm = v % 100;
+    const solved = 99 - dd + mm, att = solved + mm;
+    const secs = tt, h = Math.floor(secs / 3600), m = Math.floor(secs / 60) % 60, s = secs % 60;
+    return solved + "/" + att + " in " + (h ? h + ":" : "") + String(m).padStart(h ? 2 : 1, "0") + ":" + String(s).padStart(2, "0");
+  }
+  if (ev === "333fm") return kind === "average" ? (v / 100).toFixed(2) : String(v);
+  return fmtTime(v);
+}
+function fmtDate(d) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ""); if (!m) return d || "";
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function parseTime(t) {                    // "12.5", "1:05.3", "1:02:03" -> centiseconds
+  t = String(t).trim().replace(",", ".");
+  if (!t) return null;
+  const parts = t.split(":");
+  if (parts.length > 3 || parts.some(p => !/^\d*\.?\d*$/.test(p) || p === "" || p === ".")) return null;
+  let s = 0; for (const p of parts) s = s * 60 + parseFloat(p);
+  return s > 0 ? s * 100 : null;
+}
+function daysSince(d) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d); if (!m) return 9999; return (Date.now() - new Date(+m[1], +m[2] - 1, +m[3]).getTime()) / 86400000; }
+const personLink = h => { const a = el("a", null, h.name); a.href = "https://www.worldcubeassociation.org/persons/" + encodeURIComponent(h.id); a.target = "_blank"; a.rel = "noopener"; return a; };
+const compLink = c => { const a = el("a", null, c.name); a.href = "https://www.worldcubeassociation.org/competitions/" + encodeURIComponent(c.id); a.target = "_blank"; a.rel = "noopener"; return a; };
+function holdersEl(hs) {
+  const s = el("span");
+  hs.slice(0, 3).forEach((h, i) => { if (i) s.append(", "); s.append(personLink(h)); });
+  if (hs.length > 3) s.append(" +" + (hs.length - 3) + " more");
+  return s;
+}
+
+/* ---------- calculator ---------- */
+function calcEvents() { return ORDER.concat(state.blind ? BLIND : []); }
+function wr(ev) { const e = R.events[ev]; return e && e[state.kind] ? e[state.kind].value : null; }
+
+function renderCalc(v) {
+  const card = el("div", "card");
+  const l1 = el("label", "t", "Your event"); card.append(l1);
+  const pills = el("div", "pills");
+  const drawPills = () => {
+    pills.replaceChildren();
+    for (const ev of calcEvents()) {
+      if (wr(ev) === null) continue;
+      const b = el("button", "pill", R.events[ev].name); b.type = "button"; b.setAttribute("aria-pressed", ev === state.base ? "true" : "false");
+      b.addEventListener("click", () => { state.base = ev; store("base", ev); drawPills(); drawResults(); });
+      pills.append(b);
+    }
+  };
+  card.append(pills);
+  const f = el("div", "field");
+  f.append(el("label", "t", state.kind === "average" ? "Your average" : "Your single"));
+  const inp = el("input"); inp.type = "text"; inp.inputMode = "decimal"; inp.placeholder = "e.g. 12.50 or 1:05.30"; inp.autocomplete = "off"; inp.spellcheck = false; inp.setAttribute("aria-label", "Your time"); inp.value = state.text;
+  f.append(inp, el("div", "hint", "Seconds, or minutes:seconds. Use a decimal point."));
+  card.append(f);
+  const row = el("div", "row2");
+  const seg = el("div", "seg");
+  const mk = (k, label) => { const b = el("button", null, label); b.type = "button"; b.setAttribute("aria-pressed", state.kind === k ? "true" : "false"); b.addEventListener("click", () => { state.kind = k; store("kind", k); render(); }); return b; };
+  seg.append(mk("average", "Average"), mk("single", "Single"));
+  const sw = el("label", "sw"); const cb = el("input"); cb.type = "checkbox"; cb.checked = state.blind;
+  cb.addEventListener("change", () => { state.blind = cb.checked; store("blind", cb.checked ? "1" : "0"); if (!calcEvents().includes(state.base)) { state.base = "333"; store("base", "333"); } drawPills(); drawResults(); });
+  sw.append(cb, document.createTextNode("Include blindfolded"));
+  row.append(seg, sw); card.append(row);
+  v.append(card);
+
+  const out = el("div");
+  v.append(out);
+  const drawResults = () => {
+    out.replaceChildren();
+    const cs = parseTime(inp.value);
+    const base = wr(state.base);
+    if (cs === null || base === null) { out.append(el("div", "msg", "Enter a time above to see your ideal times in every event.")); return; }
+    const ratio = cs / base;
+    const sum = el("div", "summary");
+    sum.append("Your ", el("b", null, fmtTime(cs)), " is ", el("b", null, ratio.toFixed(2) + "×"), " the " + R.events[state.base].name + " world record " + state.kind + " (" + fmtTime(base) + ").");
+    out.append(sum);
+    const card2 = el("div", "card"); const ul = el("ul", "res");
+    const lines = [];
+    for (const ev of calcEvents()) {
+      const w = wr(ev); if (w === null) continue;
+      const ideal = w * ratio, isBase = ev === state.base;
+      const li = el("li", isBase ? "base" : "");
+      const name = el("div", "ev", R.events[ev].name); if (isBase) name.append(el("span", "chip you", "You"));
+      li.append(name, el("div", "big", fmtTime(isBase ? cs : ideal)));
+      li.append(el("div", "meta", "World record " + fmtTime(w)), el("div", "meta r", "×" + (w / base).toFixed(2) + " vs " + R.events[state.base].name));
+      ul.append(li); lines.push(R.events[ev].name + ": " + fmtTime(isBase ? cs : ideal));
+    }
+    card2.append(ul); out.append(card2);
+    const copy = el("button", "btn", "Copy these times"); copy.type = "button";
+    copy.addEventListener("click", async () => {
+      const txt = "My ideal " + state.kind + "s (from my " + fmtTime(cs) + " " + R.events[state.base].name + "):\n" + lines.join("\n");
+      try { await navigator.clipboard.writeText(txt); copy.textContent = "Copied"; } catch (e) { copy.textContent = "Couldn't copy"; }
+      setTimeout(() => copy.textContent = "Copy these times", 1500);
+    });
+    out.append(copy);
+  };
+  inp.addEventListener("input", () => { state.text = inp.value; store("val", inp.value); drawResults(); });
+  drawPills(); drawResults();
+}
+
+/* ---------- records ---------- */
+function renderRecords(v) {
+  const card = el("div", "card");
+  const all = ORDER.concat(["333bf", "333fm", "444bf", "555bf", "333mbf"]);
+  for (const ev of all) {
+    const e = R.events[ev]; if (!e) continue;
+    const blk = el("div", "evblock"); blk.append(el("div", "evt", e.name));
+    for (const kind of ["single", "average"]) {
+      const r = e[kind]; if (!r) continue;
+      const rec = el("div", "rec");
+      const h = el("div", "h"); const k = el("span", "k", kind === "single" ? "Single" : (ev === "333fm" || ev.endsWith("bf") ? "Mean" : "Average"));
+      if (daysSince(r.date) <= 30) k.append(el("span", "chip new", "New"));
+      h.append(k, el("span", "v", fmtRec(ev, kind, r.value)));
+      const w = el("div", "w"); w.append(holdersEl(r.holders));
+      const s = el("div", "sm"); s.append(compLink(r.comp), " · " + fmtDate(r.date));
+      if (r.prev) s.append(" · beat " + fmtRec(ev, kind, r.prev));
+      rec.append(h, w, s); blk.append(rec);
+    }
+    card.append(blk);
+  }
+  v.append(card);
+  v.append(el("h2", null, "Latest records broken"));
+  const c2 = el("div", "card"); const ul = el("ul", "feed");
+  for (const r of R.recent.slice(0, 25)) {
+    const li = el("li");
+    const names = holdersEl(r.holders);
+    li.append(names, " — " + R.events[r.event].name + " " + (r.kind === "single" ? "single" : (r.event === "333fm" || r.event.endsWith("bf") ? "mean" : "average")) + " ");
+    li.append(el("b", null, fmtRec(r.event, r.kind, r.value)));
+    if (r.prev) li.append(el("span", "sm", " (was " + fmtRec(r.event, r.kind, r.prev) + ")"));
+    const d = el("div", "d"); d.append(compLink(r.comp), " · " + fmtDate(r.date)); li.append(d);
+    ul.append(li);
+  }
+  c2.append(ul); v.append(c2);
+}
+
+/* ---------- shell ---------- */
+function render() {
+  const v = $("view"); v.replaceChildren();
+  $("tab-calc").setAttribute("aria-selected", state.tab === "calc");
+  $("tab-rec").setAttribute("aria-selected", state.tab === "rec");
+  if (!R) return;
+  if (state.tab === "calc") renderCalc(v); else renderRecords(v);
+}
+$("tab-calc").addEventListener("click", () => { state.tab = "calc"; render(); });
+$("tab-rec").addEventListener("click", () => { state.tab = "rec"; render(); window.scrollTo(0, 0); });
+
+async function fetchRetry(url) {
+  let err;
+  for (let k = 0; k < 4; k++) {
+    try {
+      const r = await fetch(url, { cache: k ? "reload" : "no-cache" });
+      if (r.ok) return r;
+      err = new Error("the server answered " + r.status);
+      if (r.status === 404) break;
+    } catch (e) { err = e; }
+    await new Promise(res => setTimeout(res, 1000 * (k + 1)));
+  }
+  throw err;
+}
+async function boot() {
+  const v = $("view"); v.replaceChildren(el("div", "msg", "Loading…"));
+  try {
+    R = await (await fetchRetry("records.json")).json();
+  } catch (e) {
+    const box = el("div", "msg"); box.append(el("div", null, "Couldn't load the records."), el("div", "sm", String((e && e.message) || e)));
+    const b = el("button", "btn", "Try again"); b.type = "button"; b.addEventListener("click", boot);
+    v.replaceChildren(box, b); return;
+  }
+  const t = (R.updated || "").replace(" UTC", "");
+  $("updated").textContent = t ? "Records from the WCA export of " + t + " UTC, checked daily." : "";
+  if (!R.events[state.base]) state.base = "333";
+  render();
+}
+boot();
+</script>
+</body>
+</html>
