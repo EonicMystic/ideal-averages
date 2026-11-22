@@ -92,6 +92,7 @@
   .tbl .pr { font-size: .74rem; font-weight: 600; margin-top: 2px; }
   .tbl .pr.good { color: var(--good); }
   .tbl .pr.slow { color: var(--warn); }
+  .acts { display: flex; gap: 10px; flex-wrap: wrap; }
   .btn { border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: .9rem; font-weight: 600; padding: 9px 14px; border-radius: 10px; cursor: pointer; }
   .btn:active { transform: scale(.98); }
   .rec { padding: 12px 2px; border-bottom: 1px solid var(--line); }
@@ -315,16 +316,33 @@ function renderCalc(v) {
     const card2 = el("div", "card"); card2.style.padding = "6px 12px";
     const tbl = el("table", "tbl");
     const hd = el("tr"); hd.append(el("th", null, "Event"), el("th", "n", "World record"), el("th", "n", "Your ideal time")); tbl.append(hd);
-    const lines = [];
+    const lines = [], cells = [], cmp = [];
     for (const ev of calcEvents()) {
       const w = wr(ev); if (w === null) continue;
       const isBase = ev === state.base, ideal = isBase ? cs : w * ratio;
       const tr = el("tr", isBase ? "base" : "");
       const td = el("td", "n b", fmtTime(ideal));
       const mine = isBase ? 0 : prValue(ev, state.kind);
-      if (mine > 0) { const ahead = mine <= ideal; td.append(el("div", "pr " + (ahead ? "good" : "slow"), "Your PR " + fmtTime(mine) + " · " + fmtTime(Math.abs(ideal - mine)) + (ahead ? " ahead" : " behind"))); }
+      let prText = "", prGood = false;
+      if (mine > 0) {
+        const ahead = mine <= ideal, pctd = Math.round(Math.abs(mine - ideal) / ideal * 100);
+        prGood = ahead; prText = "PR " + fmtTime(mine) + " · " + (pctd === 0 ? "right on it" : pctd + "% " + (ahead ? "ahead" : "behind"));
+        td.append(el("div", "pr " + (ahead ? "good" : "slow"), "Your " + prText));
+        cmp.push({ name: R.events[ev].name, d: (ideal - mine) / ideal });
+      }
       tr.append(el("td", null, R.events[ev].name), el("td", "n", fmtTime(w)), td);
-      tbl.append(tr); lines.push(R.events[ev].name + ": " + fmtTime(ideal));
+      tbl.append(tr); lines.push(R.events[ev].name + ": " + fmtTime(ideal)); cells.push({ name: R.events[ev].name, t: fmtTime(ideal), base: isBase, pr: prText, good: prGood });
+    }
+    let cmpSum = null;
+    if (cmp.length >= 2) {
+      cmp.sort((a, b) => b.d - a.d);
+      const best = cmp[0], worst = cmp[cmp.length - 1], aheadN = cmp.filter(x => x.d >= 0).length;
+      const pc = x => Math.round(Math.abs(x.d) * 100) + "% " + (x.d >= 0 ? "ahead of" : "behind") + " ideal";
+      cmpSum = { best, worst, text: "Strongest: " + best.name + " (" + pc(best) + ") · Weakest: " + worst.name + " (" + pc(worst) + ")" };
+      const box = el("div", "card"); box.append(el("label", "t", "Your PRs vs these ideal times"));
+      box.append(el("div", null, "Ahead of the ideal in " + aheadN + " of " + cmp.length + " other events."));
+      const r1 = el("div", "hint"); r1.append("Strongest: ", el("b", null, best.name), " (" + pc(best) + ")"); const r2 = el("div", "hint"); r2.append("Weakest: ", el("b", null, worst.name), " (" + pc(worst) + ")");
+      box.append(r1, r2); out.append(box);
     }
     card2.append(tbl); out.append(card2);
     const copy = el("button", "btn", "Copy these times"); copy.type = "button";
@@ -333,10 +351,52 @@ function renderCalc(v) {
       try { await navigator.clipboard.writeText(txt); copy.textContent = "Copied"; } catch (e) { copy.textContent = "Couldn't copy"; }
       setTimeout(() => copy.textContent = "Copy these times", 1500);
     });
-    out.append(copy);
+    const save = el("button", "btn", "Save as image"); save.type = "button";
+    save.addEventListener("click", () => saveCard(save, { cells, cs, ratio, kind: state.kind, base: R.events[state.base].name, cmp: cmpSum }));
+    const acts = el("div", "acts"); acts.append(save, copy); out.append(acts);
   };
   inp.addEventListener("input", () => { state.text = inp.value; store("val", inp.value); if (profNote) { profNote = ""; noteEl.textContent = "Seconds, or minutes:seconds. Use a decimal point."; } drawResults(); });
   drawPills(); drawResults();
+}
+
+/* ---------- save as image ---------- */
+function flash(btn, text) { const o = btn.dataset.o || btn.textContent; btn.dataset.o = o; btn.textContent = text; setTimeout(() => { btn.textContent = o; }, 1600); }
+async function saveCard(btn, d) {
+  const W = 1080, H = d.cells.some(x => x.pr) ? 1620 : 1350, F = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#0b0f14"; g.fillRect(0, 0, W, H);
+  g.textBaseline = "alphabetic";
+  g.fillStyle = "#58a6ff"; g.font = "700 34px " + F; g.fillText("IDEAL AVERAGES", 72, 108);
+  const title = prof ? prof.name : "My ideal times";
+  g.fillStyle = "#e8ecf1"; let fs = 80; g.font = "800 " + fs + "px " + F;
+  while (g.measureText(title).width > W - 144 && fs > 40) { fs -= 4; g.font = "800 " + fs + "px " + F; }
+  g.fillText(title, 72, 210);
+  g.fillStyle = "#98a3b1"; g.font = "400 38px " + F;
+  g.fillText("Based on " + fmtTime(d.cs) + " in " + d.base + " (" + d.kind + ")", 72, 272);
+  g.fillText(d.ratio.toFixed(2) + "× the world record, applied to every event", 72, 322);
+  const withPR = d.cells.some(x => x.pr), top = withPR && d.cmp ? 436 : 372, ch = withPR ? 148 : 124, pitch = ch + 18;
+  if (withPR && d.cmp) {
+    g.font = "600 28px " + F; g.fillStyle = "#56d364"; g.fillText("Strongest: " + d.cmp.best.name, 72, 378);
+    g.fillStyle = "#f0a050"; g.fillText("Weakest: " + d.cmp.worst.name, 560, 378);
+  }
+  d.cells.forEach((x, k) => {
+    const cx = 72 + (k % 2) * 480, cy = top + Math.floor(k / 2) * pitch;
+    g.fillStyle = x.base ? "#12351f" : "#131921"; g.beginPath(); g.roundRect(cx, cy, 456, ch, 18); g.fill();
+    g.fillStyle = x.base ? "#56d364" : "#98a3b1"; g.font = "600 28px " + F; g.fillText(x.name + (x.base ? "  ·  you" : ""), cx + 24, cy + 44);
+    g.fillStyle = "#e8ecf1"; g.font = "800 56px " + F; g.fillText(x.t, cx + 24, cy + 102);
+    if (x.pr) { g.fillStyle = x.good ? "#56d364" : "#f0a050"; g.font = "600 24px " + F; g.fillText(x.pr, cx + 24, cy + 134); }
+  });
+  g.fillStyle = "#98a3b1"; g.font = "400 28px " + F;
+  g.fillText(location.host + location.pathname.replace(/index\.html$/, ""), 72, H - 52);
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  if (!blob) { flash(btn, "Couldn't make image"); return; }
+  const file = new File([blob], "ideal-averages.png", { type: "image/png" });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } }
+  catch (e) { if (e && e.name === "AbortError") return; }
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = file.name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000); flash(btn, "Image saved");
 }
 
 /* ---------- records ---------- */
