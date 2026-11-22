@@ -119,6 +119,38 @@ for ev, label in EVENTS:
     out['events'][ev] = entry
 feed.sort(key=lambda x: (x['date'], x['event']), reverse=True)
 out['recent'] = feed[:60]
+# ---------- benchmark: the ten best all-rounders by Sum of Ranks over the 12 calculator events ----------
+def top_ten(kind_i):
+    # kind_i: 0 = single, 1 = average. Rank = 1 + people strictly faster; events not done count as one past the last ranked person.
+    vals = {}
+    for ev in PEVS:
+        arr = sorted(v[kind_i] for evs in pbest.values() for e2, v in evs.items() if e2 == ev and v[kind_i] > 0)
+        vals[ev] = arr
+    import bisect
+    people = [pid for pid, evs in pbest.items() if any(v[kind_i] for v in evs.values())]
+    totals = []
+    for pid in people:
+        evs = pbest[pid]; t = 0
+        for ev in PEVS:
+            v = evs.get(ev, (0, 0))[kind_i] if ev in evs else 0
+            arr = vals[ev]
+            t += (bisect.bisect_left(arr, v) + 1) if v > 0 else len(arr) + 1
+        totals.append((t, pid))
+    totals.sort()
+    top = totals[:10]
+    ppl = []
+    for t, pid in top:
+        ppl.append({'id': pid, 'name': pname.get(pid, pid), 'country': country.get(pid, ''), 'sum': t,
+                    'times': {ev: (pbest[pid].get(ev, (0, 0))[kind_i]) for ev in PEVS}})
+    mean = {}
+    for ev in PEVS:
+        xs = [p['times'][ev] for p in ppl if p['times'][ev] > 0]
+        if xs:
+            mean[ev] = round(sum(xs) / len(xs), 2)
+    return {'people': ppl, 'mean': mean, 'events': PEVS}
+
+
+out['top10'] = {'single': top_ten(0), 'average': top_ten(1)}
 with open(os.path.join(out_dir, 'records.json'), 'w', encoding='utf-8') as f:
     json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
 
