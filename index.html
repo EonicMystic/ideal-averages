@@ -53,6 +53,9 @@
   .field { margin-top: 14px; }
   input[type=text] { width: 100%; font: inherit; font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-variant-numeric: tabular-nums; }
   input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .timewrap { display: flex; gap: 8px; align-items: stretch; }
+  .timewrap input { flex: 1; min-width: 0; }
+  .colonbtn { flex: 0 0 auto; width: 56px; font: inherit; font-size: 1.6rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
   .hint { color: var(--muted); font-size: .82rem; margin-top: 6px; }
   .row2 { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 14px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -167,7 +170,8 @@ function fmtDate(d) {
   return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 function parseTime(t) {                    // "12.5", "1:05.3", "1:02:03" -> centiseconds
-  t = String(t).trim().replace(",", ".");
+  t = String(t).trim().replace(",", ".").replace(/\s+/g, ":");
+  if (/^\d+\.\d{1,2}\.\d+$/.test(t)) t = t.replace(".", ":");   // "1.05.30" -> 1:05.30
   if (!t) return null;
   const parts = t.split(":");
   if (parts.length > 3 || parts.some(p => !/^\d*\.?\d*$/.test(p) || p === "" || p === ".")) return null;
@@ -284,7 +288,7 @@ function renderCalc(v) {
     for (const ev of calcEvents()) {
       if (!has(ev)) continue;
       const b = el("button", "pill", R.events[ev].name); b.type = "button"; b.setAttribute("aria-pressed", ev === state.base ? "true" : "false");
-      b.addEventListener("click", () => { state.base = ev; store("base", ev); if (prof && PR) { fillFromProfile(); inp.value = state.text; noteEl.textContent = profNote || "Seconds, or minutes:seconds. Use a decimal point."; } drawPills(); drawResults(); });
+      b.addEventListener("click", () => { state.base = ev; store("base", ev); if (prof && PR) { fillFromProfile(); inp.value = state.text; noteEl.textContent = profNote || "Seconds, or minutes:seconds. Tap : for minutes."; } drawPills(); drawResults(); });
       pills.append(b);
     }
   };
@@ -292,8 +296,16 @@ function renderCalc(v) {
   const f = el("div", "field");
   f.append(el("label", "t", state.kind === "average" ? "Your average" : "Your single"));
   const inp = el("input"); inp.type = "text"; inp.inputMode = "decimal"; inp.placeholder = "e.g. 12.50 or 1:05.30"; inp.autocomplete = "off"; inp.spellcheck = false; inp.setAttribute("aria-label", "Your time"); inp.value = state.text;
-  const noteEl = el("div", "hint", (prof && profNote) || (prof && !PR ? "Loading your PRs…" : "Seconds, or minutes:seconds. Use a decimal point."));
-  f.append(inp, noteEl);
+  const noteEl = el("div", "hint", (prof && profNote) || (prof && !PR ? "Loading your PRs…" : "Seconds, or minutes:seconds. Tap : for minutes."));
+  const colon = el("button", null, ":"); colon.type = "button"; colon.className = "colonbtn"; colon.setAttribute("aria-label", "Insert a colon");
+  colon.addEventListener("pointerdown", e => e.preventDefault());
+  colon.addEventListener("click", () => {
+    const a = inp.selectionStart == null ? inp.value.length : inp.selectionStart, b = inp.selectionEnd == null ? a : inp.selectionEnd;
+    inp.value = inp.value.slice(0, a) + ":" + inp.value.slice(b); inp.focus(); inp.setSelectionRange(a + 1, a + 1);
+    inp.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const wrap = el("div", "timewrap"); wrap.append(inp, colon);
+  f.append(wrap, noteEl);
   card.append(f);
   const row = el("div", "row2");
   const seg = el("div", "seg");
@@ -355,7 +367,7 @@ function renderCalc(v) {
     save.addEventListener("click", () => saveCard(save, { cells, cs, ratio, kind: state.kind, base: R.events[state.base].name, cmp: cmpSum }));
     const acts = el("div", "acts"); acts.append(save, copy); out.append(acts);
   };
-  inp.addEventListener("input", () => { state.text = inp.value; store("val", inp.value); if (profNote) { profNote = ""; noteEl.textContent = "Seconds, or minutes:seconds. Use a decimal point."; } drawResults(); });
+  inp.addEventListener("input", () => { state.text = inp.value; store("val", inp.value); if (profNote) { profNote = ""; noteEl.textContent = "Seconds, or minutes:seconds. Tap : for minutes."; } drawResults(); });
   drawPills(); drawResults();
 }
 
